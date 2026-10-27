@@ -538,12 +538,9 @@
     setStatus('ready');
     if (!S.greeted) {
       S.greeted = true;
-      addBotNote(`Namaste, I'm Plutus. Ask me anything about ${companyName()}'s annual report — tap the mic and speak (I send it when you pause), or type. I answer only from the report and show you where each point comes from.`);
-      const autoMic = !!(S.caps && S.caps.stt && canRecord());
-      addBotNote(`Ask in any language — English, हिंदी, Hinglish, বাংলা, தமிழ், తెలుగు, मराठी, Español… ${autoMic ? 'typed or spoken, I detect it' : 'typed in any language; for speech, pick yours next to the mic'} and answer in the same language. Want another one? Just say “answer in Tamil”.`);
-      if (!SR && !autoMic) addBotNote('Voice input isn’t available in this browser (try Chrome, Edge or Safari). You can still type, and I can read answers aloud.');
+      if (!SR && !(S.caps && S.caps.stt && canRecord())) addBotNote('Voice input isn’t available in this browser (try Chrome, Edge or Safari). You can still type, and I can read answers aloud.');
     }
-    renderChips();
+     renderChips();
     if (S.pending) { const q = S.pending; S.pending = null; setTimeout(() => ask(q), 250); } // a question sent from the dashboard
   }
 
