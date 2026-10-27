@@ -1,0 +1,94 @@
+/* ============================================================
+   PLUTUS — Compare stocks page (js/compare.js). Uses the site's colour tokens (light / dark).
+   Each company has its own colour in --c (cards, chips, table headers, charts).
+   ============================================================ */
+.view-compare { flex: 1; width: 100%; max-width: 1360px; margin: 0 auto; padding: 10px var(--pad-x) 60px; min-width: 0; }
+.cx-head { padding-top: 30px; }
+.cx-head h1 { font-size: clamp(26px, 4.4vw, 52px); font-weight: 300; text-transform: uppercase; line-height: 1.05; }
+:root:not([data-theme="dark"]) .cx-head h1 { font-weight: 400; }
+.cx-sub { margin-top: 12px; max-width: 760px; font-size: 13.5px; line-height: 1.6; color: var(--muted); }
+.cx-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 22px; }
+.cx-chips { list-style: none; display: contents; }
+.cx-chip { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 6px 0 10px; border: 1px solid color-mix(in srgb, var(--c) 55%, var(--line-2)); border-left: 4px solid var(--c); border-radius: 999px; background: var(--card-bg); min-width: 0; }
+.cx-cn { font-size: 13px; font-weight: 600; color: var(--hi); white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.cx-cs { font-size: 10px; letter-spacing: .08em; color: var(--muted); }
+.cx-rm { width: 28px; height: 28px; border-radius: 50%; border: 1px solid transparent; background: none; color: var(--muted); font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.cx-rm:hover, .cx-rm:focus-visible { color: var(--bad); border-color: var(--line-2); outline: none; }
+.cx-add { position: relative; flex: 1 1 240px; max-width: 380px; min-width: 200px; }
+.cx-add input { width: 100%; height: 42px; background: var(--input-bg); border: 1px dashed var(--ctl-border); color: var(--text); padding: 0 14px 0 36px; font-size: 14px; border-radius: 999px; outline: none; }
+.cx-add input:focus { border-style: solid; border-color: var(--accent); }
+.cx-add .suggest { width: min(520px, calc(100vw - 2 * var(--pad-x))); right: auto; }
+.cx-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.cx-quick button, .cx-sg { background: transparent; color: var(--muted); border: 1px solid var(--line-2); padding: 7px 13px; border-radius: 999px; font-size: 12px; letter-spacing: .04em; transition: all .2s; display: inline-flex; align-items: center; gap: 7px; }
+.cx-quick button:hover, .cx-sg:hover { color: var(--text); border-color: var(--accent); }
+.cx-empty { margin-top: 40px; text-align: center; padding: 40px 24px; }
+.cx-empty h2 { font-size: 16px; font-weight: 400; color: var(--text); line-height: 1.5; }
+.cx-empty p { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.cx-sugg { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin-top: 18px; }
+.cx-loading { justify-content: center; margin-top: 30px; }
+.cx-err { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+/* cards */
+.cx-cards { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 14px; margin-top: 34px; }
+.cx-card { border-top: 3px solid var(--c); display: flex; flex-direction: column; gap: 14px; }
+.cx-card::before { display: none; }
+.cx-ct { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.cx-cid { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cx-cid b { font-size: 15px; font-weight: 600; color: var(--hi); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-cid span { font-size: 10.5px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cx-px { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; font-variant-numeric: tabular-nums; }
+.cx-pv { font-size: 24px; font-weight: 300; color: var(--hi); }
+:root:not([data-theme="dark"]) .cx-pv { font-weight: 400; }
+.cx-px span:last-child { font-size: 13px; }
+.cx-score { display: flex; align-items: center; gap: 12px; }
+.cx-ringw { position: relative; width: 58px; height: 58px; flex: none; display: inline-grid; place-items: center; }
+.cx-ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+.cx-ring .track { fill: none; stroke: var(--line-2); stroke-width: 7; }
+.cx-ring .bar { fill: none; stroke-width: 7; stroke-linecap: round; }
+.cx-rn { position: relative; font-size: 18px; font-weight: 500; color: var(--hi); }
+.cx-score > span:last-child { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cx-tier { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; }
+.cx-score small { font-size: 11px; color: var(--muted); }
+.cx-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 0; padding-top: 12px; border-top: 1px dashed var(--line-2); }
+.cx-kv div { min-width: 0; }
+.cx-kv dt { font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.cx-kv dd { margin: 3px 0 0; font-size: 14px; color: var(--hi); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cx-ind { font-size: 11.5px; color: var(--muted); min-height: 1em; }
+.cx-open { margin-top: auto; font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); text-decoration: none; }
+.cx-open:hover { text-decoration: underline; }
+/* highlights */
+.cx-hl { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.cx-hl-l { list-style: none; display: grid; gap: 12px; }
+.cx-hl-l li { display: grid; gap: 3px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.cx-hl-l li:last-child { border-bottom: 0; padding-bottom: 0; }
+.cx-hl-k { font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.cx-hl-v { font-size: 14px; color: var(--text); line-height: 1.5; }
+.cx-hl-v b { color: var(--hi); }
+.cx-hl-v small { font-size: 12px; color: var(--muted); }
+.cx-tr { display: grid; grid-template-columns: minmax(0, 130px) minmax(0, 1fr) 28px; align-items: center; gap: 10px; margin-bottom: 12px; }
+.cx-tn { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-tb { height: 10px; border-radius: 5px; background: var(--line-2); overflow: hidden; }
+.cx-tb i { display: block; height: 100%; border-radius: 5px; transition: width .8s cubic-bezier(.2, .8, .2, 1); }
+.cx-tr b { text-align: right; font-variant-numeric: tabular-nums; color: var(--hi); }
+.cx-note { margin-top: 6px; font-size: 11.5px; line-height: 1.55; color: var(--ind-text); }
+/* table */
+.cx-table { min-width: calc(260px + var(--n) * 150px); }
+.cx-table th, .cx-table td { white-space: nowrap; }
+.cx-table thead th { border-bottom: 2px solid var(--c, var(--line)); color: var(--hi); text-transform: none; letter-spacing: .02em; font-size: 12.5px; font-weight: 600; }
+.cx-table thead th:first-child { color: var(--muted); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; font-weight: 500; }
+.cx-th { display: inline-flex; align-items: center; gap: 8px; }
+.cx-table tbody th { text-align: left; font-weight: 400; padding: 11px 14px; border-bottom: 1px solid var(--line); position: sticky; left: 0; background: var(--card-bg); z-index: 1; }
+.cx-table tbody th span { display: block; font-size: 13px; color: var(--text); }
+.cx-table tbody th small { display: block; margin-top: 2px; font-size: 10.5px; color: var(--dim); }
+.cx-table tr.cx-g td { text-align: left; background: var(--row-main); color: var(--accent); font-size: 10.5px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; padding: 9px 14px; position: sticky; left: 0; }
+.cx-table td.best { color: var(--good); font-weight: 600; background: color-mix(in srgb, var(--good) 7%, transparent); }
+.cx-star { font-style: normal; margin-right: 6px; color: var(--accent-2); }
+.cx-foot { margin-top: 24px; font-size: 11.5px; line-height: 1.6; color: var(--muted); }
+.cx-sec { margin-top: 48px; }
+@media (max-width: 1000px) { .cx-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .cx-hl { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) {
+  .cx-cards { grid-template-columns: minmax(0, 1fr); }
+  .cx-add { max-width: none; flex-basis: 100%; }
+  .cx-chip { height: 38px; }
+  .cx-cn { max-width: 130px; }
+  .cx-table { min-width: calc(180px + var(--n) * 120px); }
+}
