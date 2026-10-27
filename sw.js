@@ -7,7 +7,7 @@
      is NOT touched — live data is never served stale.
    Bump CACHE_VERSION whenever you want to force a fresh cache.
    ============================================================ */
-const CACHE_VERSION = 'plutus-v32';
+const CACHE_VERSION = 'plutus-v34';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'css/style.css', 'css/news.css', 'css/pwa.css', 'css/voice.css', 'css/compare.css',
