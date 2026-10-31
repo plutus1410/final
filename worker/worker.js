@@ -30,7 +30,7 @@
    ============================================================ */
 
 // After your site is live, lock this down, e.g. ['https://<user>.github.io']
-const ALLOWED_ORIGINS = ['*'];
+const ALLOWED_ORIGINS = ['https://plutus1410.github.io'];
 const ALLOWED_HOSTS = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'];
 const NEWS_HOSTS = ['www.bing.com'];
 const NEWS_PATHS = ['/news/search'];
@@ -187,9 +187,9 @@ const V = {
   defaults: { groq: 'openai/gpt-oss-120b', gemini: 'gemini-3.1-flash-lite', workersai: '@cf/meta/llama-3.1-8b-instruct-fp8-fast' }
 };
 
-/* v8: the answer prompt asks for depth (several angles, management's reasons, what it means) while keeping the
-   original honesty rules: facts only from the excerpts, cited, numbers quoted exactly (the number guard still checks them). */
-const SYSTEM_PROMPT = `You are Plutus, a friendly, sharp analyst who explains ONE company's latest annual report to an everyday investor. You give thorough, insightful answers, never one-liners, while staying strictly faithful to the report.
+/* Answers are point-first by default. Paragraphs are used only when the visitor explicitly asks for a detailed,
+   elaborate or paragraph-style answer. The browser also enforces the selected shape while rendering. */
+const SYSTEM_PROMPT = `You are Plutus, a friendly, sharp analyst who explains ONE company's latest annual report to an everyday investor while staying strictly faithful to the report.
 
 UNDERSTANDING THE QUESTION
 - The visitor's words may come from speech recognition and contain errors. Use the "interpreted question", the points to cover and the earlier conversation to work out what they really want to know, and answer that.
@@ -200,24 +200,33 @@ FACTS — follow strictly
 2. You MAY briefly explain what a financial term means in general (for example what operating cash flow measures) so a beginner can follow.
 3. Quote numbers exactly as written in the excerpts, with their units and currency. You may say a figure rose or fell when both years are in the excerpts, but do NOT calculate new numbers (differences, percentages, ratios) yourself.
 4. Keep what MANAGEMENT SAYS separate from plain figures, e.g. "Management attributes the fall to higher working capital [S1]."
-5. If the excerpts answer only part of the question, answer that part fully and say plainly what they don't cover. If they don't answer it at all, write exactly "The annual report excerpts I searched don't explain this." as SPOKEN, and in DETAILED list the related information the excerpts do contain (if any), with citations.
+5. If the excerpts answer only part of the question, answer that part fully and say plainly what they don't cover. If they don't answer it at all, write exactly "The annual report excerpts I searched don't explain this." as SPOKEN, and in DETAILED present any related information the excerpts do contain in the selected response style, with citations.
 6. If the question is about a period the excerpts do not cover, say which period they do cover.
 7. Never recommend buying, selling or holding anything, and never predict the share price.
 
-DEPTH
-- Use every relevant excerpt, not just the first. Connect the dots: the figures, how they moved versus the previous year (as stated), the reasons management gives, related items (working capital, capex, borrowings, segments) and anything that qualifies the picture (risks, one-offs, accounting changes).
-- Finish with what it means for an everyday investor, in plain words: an interpretation of the report's facts, never advice.
+CONTENT
+- Use the relevant excerpts. Connect the figures, how they moved versus the previous year (as stated), the reasons management gives and any important qualification supported by the excerpts.
+- Finish with what the facts mean in plain words, never with investment advice.
+- Follow the RESPONSE STYLE supplied below exactly. Do not mix paragraphs and bullet points.
 
-Reply in exactly this format and nothing else:
+Always reply in exactly this envelope and nothing else:
 UNDERSTOOD: <the visitor's question restated as one clear sentence, fixing any speech-recognition slips>
-SPOKEN: <4 to 7 natural, conversational sentences (about 80 to 140 words). Answer the question directly first, then the key figures and the main reasons. It is read aloud, so: no markdown, no lists, no citation tags.>
+SPOKEN: <a citation-free, voice-friendly rendering of the same answer>
 DETAILED:
-### <short heading>
-- <point> [S#]
-- <point> [S#]
-### <short heading>
-- <point> [S#]
-(Use 2 to 4 headings that fit the question, such as "The numbers", "Why it changed", "What management says", "Risks and caveats", "What this means for investors", with 8 to 14 points in total. Every factual point ends with its [S#] citation; a closing "what this means" point may skip the citation only if it adds no new fact.)`;
+<the displayed answer in the requested response style>`;
+
+const POINT_STYLE_PROMPT = `RESPONSE STYLE: POINTS (default)
+- The displayed answer must contain only 3 to 7 concise bullet points. No headings and no paragraphs.
+- Put each bullet on its own line, beginning with "- ". Every factual bullet must end with one or more [S#] citations.
+- SPOKEN must contain the same points in concise plain text, separated by semicolons. Do not use markdown or citation tags.`;
+
+const DETAILED_STYLE_PROMPT = `RESPONSE STYLE: DETAILED PARAGRAPHS (the visitor explicitly asked for detail)
+- The displayed answer must contain 2 to 4 coherent paragraphs and no headings, bullets or numbered lists.
+- Separate paragraphs with a blank line. Put [S#] citations immediately after the claims they support.
+- SPOKEN must be a natural, citation-free version of those paragraphs, suitable for reading aloud.`;
+
+// Keep this deliberately explicit: paragraphs are opt-in, never inferred merely because a question is broad.
+const DETAIL_REQUEST_RE = /\b(?:detailed|in[ -]?depth|in detail|more detail|with details?|give (?:me )?details?|comprehensive|elaborate|thorough|full explanation|paragraphs?|long(?:er)? answer|explain (?:it )?fully|explain (?:it )?in detail)\b|(?:detail|details?)\s+(?:mein|me)|(?:vistaar|vistar)\s+(?:se|mein)|विस्तार\s+से|विस्तृत|डिटेल\s+में/i;
 
 /* v8: the refining step. A cheap call that cleans up a spoken question and suggests the words an annual report would use,
    so the browser's keyword search finds better passages. If it fails, the browser simply uses the question as typed. */
@@ -486,6 +495,8 @@ async function handleAsk(req, env, cors, cache, ctx) {
   const meta = b.meta || {};
   const rep = meta.report || {};
   const rf0 = b.refined && typeof b.refined === 'object' ? b.refined : {};
+  const responseStyle = DETAIL_REQUEST_RE.test(question) ? 'detailed' : 'points';
+  const stylePrompt = responseStyle === 'detailed' ? DETAILED_STYLE_PROMPT : POINT_STYLE_PROMPT;
 
   // v9: a stand-alone question (no conversation history) asked again — same company, same report, same passages —
   // is answered from the edge cache: no AI call, no tokens. Word order and small words don't matter.
@@ -493,7 +504,7 @@ async function handleAsk(req, env, cors, cache, ctx) {
   let cacheKey = null;
   if (!histIn.length) {
     const words = [...new Set(String(rf0.question || question).toLowerCase().match(/[a-z0-9]+/g) || [])].filter((w) => w.length > 1 && !ANS_STOP.has(w)).sort();
-    cacheKey = new Request('https://plutus-cache/ans/' + await sha256([symbol, cleanStr(rep.period_label, 50), cleanStr(rep.filed, 12), words.join(' '), ex.map((e) => e.text.slice(0, 120)).join('|')].join('\n')));
+    cacheKey = new Request('https://plutus-cache/ans-v2/' + await sha256([responseStyle, symbol, cleanStr(rep.period_label, 50), cleanStr(rep.filed, 12), words.join(' '), ex.map((e) => e.text.slice(0, 120)).join('|')].join('\n')));
     const hit = await cache.match(cacheKey);
     if (hit) { try { return json({ ...(await hit.json()), cached: true }, 200, cors); } catch (e) { /* bad entry: answer afresh */ } }
   }
@@ -516,7 +527,7 @@ async function handleAsk(req, env, cors, cache, ctx) {
     interpreted && interpreted.toLowerCase() !== question.toLowerCase() ? `Interpreted question: ${interpreted}` : '',
     aspects.length ? 'A thorough answer should cover:\n' + aspects.map((a) => '- ' + a).join('\n') : ''
   ].filter(Boolean).join('\n');
-  const user = `${header}\n${hist ? hist + '\n' : ''}\n${qBlock}\n\nExcerpts:\n${excerptText}`;
+  const user = `${header}\n${hist ? hist + '\n' : ''}\n${qBlock}\n\n${stylePrompt}\n\nExcerpts:\n${excerptText}`;
 
   // an answer without the SPOKEN / DETAILED shape (a weak or cut-off reply) is passed over for the next service
   const { result, errors } = await runPool(env, cache, SYSTEM_PROMPT, user, null, (t) => /SPOKEN:/i.test(t) && /DETAILED:/i.test(t));
@@ -534,7 +545,7 @@ async function handleAsk(req, env, cors, cache, ctx) {
   const allowedText = excerptText + ' ' + question + ' ' + interpreted + ' ' + JSON.stringify(rep) + ' ' + cleanStr(meta.company, 90);
   const unverified = unverifiedNumbers(spoken + ' ' + detailed, allowedText);
   const answered = !/don['’]?t explain this/i.test(spoken);
-  const out = { understood, spoken, detailed, cites, unverified, answered, provider: result.provider };
+  const out = { understood, spoken, detailed, style: responseStyle, cites, unverified, answered, provider: result.provider };
   if (cacheKey && answered && spoken.length > 40) {
     const put = cache.put(cacheKey, new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${V.answerCacheSeconds}` } }));
     if (ctx && ctx.waitUntil) ctx.waitUntil(put); else await put;
